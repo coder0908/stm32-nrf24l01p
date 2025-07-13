@@ -5,14 +5,13 @@
  *      Author: coder0908
  */
 
-#ifndef __NRF24_H__
-#define __NRF24_H__
+#ifndef __NRF24_DRIVER_H__
+#define __NRF24_DRIVER_H__
 
 #include <stdint.h>
 #include <stdbool.h>
 #include "stm32f4xx_hal.h"
 #include "vmd.h"
-
 
 #define NRF24_MAX_PLD_WIDTH 32
 
@@ -58,30 +57,30 @@
 #define NRF24_REG_FEATURE		0x1D
 
 
-struct nrf24 {
+struct Nrf24 {
 	/*public*/
-	GPIO_TypeDef 	*ce_port;
-	uint16_t  	ce_pin;
+	GPIO_TypeDef 	*cePort;
+	uint16_t  	cePin;
 
-	GPIO_TypeDef *cs_port;
-	uint16_t cs_pin;
+	GPIO_TypeDef *csPort;
+	uint16_t csPin;
 
 	SPI_HandleTypeDef *hspi;
 
 	/* private */
-	uint8_t status_reg;
-	uint8_t tmp_buf[32];
-	uint8_t nop_buf[32];
+	uint8_t _statusReg;
+	uint8_t _tmpBuf[32];
+	uint8_t _nopBuf[32];
 };
 
-enum nrf24_pa_power {
+enum Nrf24_PaPower {
 	NRF24_PA_M18DBM = 0,
 	NRF24_PA_M12DBM,
 	NRF24_PA_M6DBM,
 	NRF24_PA_0DBM
 };
 
-enum nrf24_data_rate {
+enum Nrf24_DataRate {
 	NRF24_1MBPS = 0,
 	NRF24_2MBPS,
 	NRF24_250KBPS
@@ -89,92 +88,94 @@ enum nrf24_data_rate {
 
 
 
-enum vmd_ret nrf24_init(struct nrf24 *rd);
-enum vmd_ret nrf24_deinit(struct nrf24 *rd);
+bool nrf24_init(struct Nrf24 *rd);
+bool nrf24_deinit(struct Nrf24 *rd);
 
-enum vmd_ret nrf24_begin(struct nrf24 *rd);
+bool nrf24_begin(struct Nrf24 *rd);
 
-enum vmd_ret nrf24_w_tx_pld(struct nrf24 *rd, uint8_t *tx_pld, uint16_t size);
-enum vmd_ret nrf24_r_rx_pld(struct nrf24 *rd, uint8_t *rx_pld, uint16_t size);
-enum vmd_ret nrf24_w_tx_pld_no_ack(struct nrf24 *rd, uint8_t *tx_pld, uint16_t size);
-enum vmd_ret nrf24_w_ack_pld(struct nrf24 *rd, uint8_t pipe, const uint8_t *ack_pld, uint8_t size);
+bool nrf24_write_txPld(struct Nrf24 *rd, uint8_t *tx_pld, uint16_t size);
+bool nrf24_read_rxPld(struct Nrf24 *rd, uint8_t *rx_pld, uint16_t size);
+bool nrf24_write_txPldNoAck(struct Nrf24 *rd, uint8_t *tx_pld, uint16_t size);
+bool nrf24_write_ackPld(struct Nrf24 *rd, uint8_t pipe, const uint8_t *ack_pld, uint8_t size);
 
-enum vmd_ret nrf24_reuse_tx_pld(struct nrf24 *rd);
+bool nrf24_reuse_txPld(struct Nrf24 *rd);
 
-enum vmd_ret nrf24_r_pld_width(struct nrf24 *rd, uint8_t *pld_width);
-enum vmd_ret nrf24_r_status(struct nrf24 *rd, uint8_t *status);
+bool nrf24_read_pldWidth(struct Nrf24 *rd, uint8_t *pld_width);
+bool nrf24_read_status(struct Nrf24 *rd, uint8_t *status);
 
-enum vmd_ret nrf24_flush_tx(struct nrf24 *rd);
-enum vmd_ret nrf24_flush_rx(struct nrf24 *rd);
+bool nrf24_flush_txBuf(struct Nrf24 *rd);
+bool nrf24_flush_rxBuf(struct Nrf24 *rd);
 
-enum vmd_ret nrf24_set_irq(struct nrf24 *rd, bool RX_DR, bool TX_DS, bool MAX_RT);
-enum vmd_ret nrf24_get_irq(struct nrf24 *rd, bool *RX_DR, bool *TX_DS, bool *MAX_RT);
+bool nrf24_en_irq(struct Nrf24 *rd, bool RX_DR, bool TX_DS, bool MAX_RT);
+bool nrf24_isEn_irq(struct Nrf24 *rd, bool *RX_DR, bool *TX_DS, bool *MAX_RT);
 
-enum vmd_ret nrf24_is_asserted_irq(struct nrf24 *rd, bool *rx_dr, bool *tx_ds, bool *max_rt);
-enum vmd_ret nrf24_clear_irq(struct nrf24 *rd, bool rx_dr, bool tx_ds, bool max_rt);
+bool nrf24_read_irq(struct Nrf24 *rd, bool *rx_dr, bool *tx_ds, bool *max_rt);
+bool nrf24_clear_irq(struct Nrf24 *rd, bool rx_dr, bool tx_ds, bool max_rt);
 
-enum vmd_ret nrf24_set_crc(struct nrf24 *rd, uint8_t crc_byte_len);
-enum vmd_ret nrf24_get_crc(struct nrf24 *rd, uint8_t *crc_byte_len);
+bool nrf24_set_crcLen(struct Nrf24 *rd, uint8_t crc_byte_len);
+bool nrf24_get_crcLen(struct Nrf24 *rd, uint8_t *crc_byte_len);
 
-enum vmd_ret nrf24_en_power_up(struct nrf24 *rd, bool en);
-enum vmd_ret nrf24_isen_power_up(struct nrf24 *rd, bool *is_en);
+bool nrf24_en_power(struct Nrf24 *rd, bool en);
+bool nrf24_isEn_power(struct Nrf24 *rd, bool *is_en);
 
-enum vmd_ret nrf24_set_pmode(struct nrf24 *rd, bool is_rx);
-enum vmd_ret nrf24_get_pmode(struct nrf24 *rd, bool *is_rx);
+bool nrf24_set_pmode(struct Nrf24 *rd, bool is_rx);
+bool nrf24_get_pmode(struct Nrf24 *rd, bool *is_rx);
 
-enum vmd_ret nrf24_set_auto_ack(struct nrf24 *rd, uint8_t pipe, bool en);
-enum vmd_ret nrf24_get_auto_ack(struct nrf24 *rd, uint8_t pipe, bool *is_en);
+bool nrf24_en_autoAck(struct Nrf24 *rd, uint8_t pipe, bool en);
+bool nrf24_isEn_autoAck(struct Nrf24 *rd, uint8_t pipe, bool *is_en);
 
-enum vmd_ret nrf24_en_rx_addr(struct nrf24 *rd, uint8_t pipe, bool en);
-enum vmd_ret nrf24_isen_rx_addr(struct nrf24 *rd, uint8_t pipe, bool *is_en);
+bool nrf24_en_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool en);
+bool nrf24_isEn_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool *is_en);
 
-enum vmd_ret nrf24_set_addr_width(struct nrf24 *rd, uint8_t addr_width);
-enum vmd_ret nrf24_get_addr_width(struct nrf24 *rd, uint8_t *addr_width);
+bool nrf24_set_addrWidth(struct Nrf24 *rd, uint8_t addr_width);
+bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addr_width);
 
-enum vmd_ret nrf24_set_ard(struct nrf24 *rd, uint16_t auto_re_trmit_delay);
-enum vmd_ret nrf24_get_ard(struct nrf24 *rd, uint16_t *auto_re_trmit_delay);
+bool nrf24_set_ARDelay(struct Nrf24 *rd, uint16_t ARDelay);
+bool nrf24_get_ARDelay(struct Nrf24 *rd, uint16_t *ARDelay);	
 
-enum vmd_ret nrf24_set_arc(struct nrf24 *rd, uint8_t auto_re_trmit_cnt);
-enum vmd_ret nrf24_get_arc(struct nrf24 *rd, uint8_t *auto_re_trmit_cnt);
+bool nrf24_set_ARCnt(struct Nrf24 *rd, uint8_t ARCnt);
+bool nrf24_get_ARCnt(struct Nrf24 *rd, uint8_t *ARCnt);
 
-enum vmd_ret nrf24_set_channel(struct nrf24 *rd, uint16_t Mhz);
-enum vmd_ret nrf24_get_channel(struct nrf24 *rd, uint16_t *Mhz);
+bool nrf24_set_channel(struct Nrf24 *rd, uint16_t Mhz);
+bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *Mhz);
 
-enum vmd_ret nrf24_set_data_rate(struct nrf24 *rd, enum nrf24_data_rate data_rate);
-enum vmd_ret nrf24_get_data_rate(struct nrf24 *rd, enum nrf24_data_rate *data_rate);
+bool nrf24_set_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate dataRate);
+bool nrf24_get_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate *dataRate);
 
-enum vmd_ret nrf24_set_pa_power(struct nrf24 *rd, enum nrf24_pa_power pa_pwr);
-enum vmd_ret nrf24_get_pa_power(struct nrf24 *rd, enum nrf24_pa_power *pa_pwr);
+bool nrf24_set_paPower(struct Nrf24 *rd, enum Nrf24_PaPower paPower);
+bool nrf24_get_paPower(struct Nrf24 *rd, enum Nrf24_PaPower *paPower);
 
-enum vmd_ret nrf24_r_pipe_num(struct nrf24 *rd, uint8_t *pipe);
+bool nrf24_read_pipeNum(struct Nrf24 *rd, uint8_t *pipe);
 
-enum vmd_ret nrf24_is_tx_full(struct nrf24 *rd, bool *is_full);
-enum vmd_ret nrf24_is_rx_full(struct nrf24 *rd, bool *is_full);
+bool nrf24_is_txBufFull(struct Nrf24 *rd, bool *is_full);
+bool nrf24_is_rxBufFull(struct Nrf24 *rd, bool *is_full);	
 
-enum vmd_ret nrf24_is_rx_empty(struct nrf24 *rd, bool *is_empty);
-enum vmd_ret nrf24_is_tx_empty(struct nrf24 *rd, bool *is_empty);
+bool nrf24_is_rxBufEmpty(struct Nrf24 *rd, bool *is_empty);
+bool nrf24_is_txBufEmpty(struct Nrf24 *rd, bool *is_empty);
 
-enum vmd_ret nrf24_r_plos_cnt(struct nrf24 *rd, uint8_t *plos_cnt);
-enum vmd_ret nrf24_r_arc_cnt(struct nrf24 *rd, uint8_t *auto_re_trmit_cnt);
+bool nrf24_read_plosCnt(struct Nrf24 *rd, uint8_t *plos_cnt);
+bool nrf24_read_ARCnt(struct Nrf24 *rd, uint8_t *ARCnt);
 
-enum vmd_ret nrf24_set_rx_addr(struct nrf24 *rd, uint8_t pipe, uint8_t *rx_addr, uint8_t width);
-enum vmd_ret nrf24_get_rx_addr(struct nrf24 *rd, uint8_t pipe, uint8_t *rx_addr, uint8_t width);
+bool nrf24_set_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rx_addr, uint8_t width);
+bool nrf24_get_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rx_addr, uint8_t width);
 
-enum vmd_ret nrf24_set_tx_addr(struct nrf24 *rd, uint8_t *tx_addr, uint8_t width);
-enum vmd_ret nrf24_get_tx_addr(struct nrf24 *rd, uint8_t *tx_addr, uint8_t width);
+bool nrf24_set_txAddr(struct Nrf24 *rd, uint8_t *tx_addr, uint8_t width);
+bool nrf24_get_txAddr(struct Nrf24 *rd, uint8_t *tx_addr, uint8_t width);
 
-enum vmd_ret nrf24_set_rx_pld_width(struct nrf24 *rd, uint8_t pipe, uint8_t pld_width);
-enum vmd_ret nrf24_get_rx_pld_width(struct nrf24 *rd, uint8_t pipe, uint8_t *pld_width);
+bool nrf24_set_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t pld_width);
+bool nrf24_get_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t *pld_width);
 
-enum vmd_ret nrf24_set_dpl(struct nrf24 *rd, uint8_t pipe, bool en);
-enum vmd_ret nrf24_get_dpl(struct nrf24 *rd, uint8_t pipe, bool *is_en);
-enum vmd_ret nrf24_en_dpl(struct nrf24 *rd, bool en);
-enum vmd_ret nrf24_isen_dpl(struct nrf24 *rd, bool *en);
+bool nrf24_set_DPLPipe(struct Nrf24 *rd, uint8_t pipe, bool en);
+bool nrf24_get_DPLPipe(struct Nrf24 *rd, uint8_t pipe, bool *is_en);
+bool nrf24_en_DPL(struct Nrf24 *rd, bool en);
+bool nrf24_isEn_DPL(struct Nrf24 *rd, bool *en);
 
-enum vmd_ret nrf24_en_ack_pld(struct nrf24 *rd, bool en);
-enum vmd_ret nrf24_isen_ack_pld(struct nrf24 *rd, bool *is_en);
+bool nrf24_en_ackPld(struct Nrf24 *rd, bool en);
+bool nrf24_isEn_ackPld(struct Nrf24 *rd, bool *is_en);
 
-enum vmd_ret nrf24_en_dyn_ack(struct nrf24 *rd, bool en);
-enum vmd_ret nrf24_isen_dyn_ack(struct nrf24 *rd, bool *is_en);
+bool nrf24_en_dynAck(struct Nrf24 *rd, bool en);
+bool nrf24_isEn_dynAck(struct Nrf24 *rd, bool *is_en);
 
-#endif /* __NRF24_H__*/
+bool nrf24_init_arduinoStyle(struct Nrf24 *rd);
+
+#endif /* __NRF24_DRIVER_H__*/
