@@ -5,311 +5,321 @@
  *      Author: coder0908
  */
 
-
 #include "nrf24_driver.h"
 
 #define _BV(bit) (1 << bit)
 
-static void en_cs(struct nrf24 *rd)
+static void en_cs(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	HAL_GPIO_WritePin(rd->cs_port, rd->cs_pin, GPIO_PIN_RESET);
+	VMD_ASSERT_PARAM(rd);
+	HAL_GPIO_WritePin(rd->csPort, rd->csPin, GPIO_PIN_RESET);
 }
 
-static void dis_cs(struct nrf24 *rd)
+static void dis_cs(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	HAL_GPIO_WritePin(rd->cs_port, rd->cs_pin, GPIO_PIN_SET);
+	VMD_ASSERT_PARAM(rd);
+	HAL_GPIO_WritePin(rd->csPort, rd->csPin, GPIO_PIN_SET);
 }
 
-static void en_ce(struct nrf24 *rd)
+static void en_ce(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	HAL_GPIO_WritePin(rd->ce_port, rd->ce_pin, GPIO_PIN_SET);
+	VMD_ASSERT_PARAM(rd);
+	HAL_GPIO_WritePin(rd->cePort, rd->cePin, GPIO_PIN_SET);
 }
 
-static void dis_ce(struct nrf24 *rd)
+static void dis_ce(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	HAL_GPIO_WritePin(rd->ce_port, rd->ce_pin, GPIO_PIN_RESET);
+	VMD_ASSERT_PARAM(rd);
+	HAL_GPIO_WritePin(rd->cePort, rd->cePin, GPIO_PIN_RESET);
 }
 
 //LSB first
-static enum vmd_ret write_spi(struct nrf24 *rd, uint8_t reg, uint8_t *tx_buf, uint16_t size, uint8_t *status)
+static bool nrf24_write_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *txBuf, uint16_t size, uint8_t *status)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(tx_buf));
+	VMD_ASSERT_PARAM(rd);
+	VMD_ASSERT_PARAM(txBuf);
 	VMD_ASSERT_PARAM(size <= 32);
 
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
 	reg |= NRF24_CMD_W_REGISTER;
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->status_reg):status, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->_statusReg):status, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, tx_buf, rd->tmp_buf, size, 1000);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txBuf, rd->_tmpBuf, size, 1000);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //LSB first
-static enum vmd_ret read_spi(struct nrf24 *rd, uint8_t reg, uint8_t *rx_buf, uint16_t size, uint8_t *status)
+static bool nrf24_read_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *rxBuf, uint16_t size, uint8_t *status)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(rx_buf));
+	VMD_ASSERT_PARAM((rd));
+	VMD_ASSERT_PARAM((rxBuf));
 	VMD_ASSERT_PARAM(size <= 32);
 
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
 	reg &= NRF24_CMD_R_REGISTER;
 	
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->status_reg):status, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->_statusReg):status, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, rd->nop_buf, rx_buf, size, 1000);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, rd->_nopBuf, rxBuf, size, 1000);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
-//ex) if you want to write 0bxxddddxx, data = 0bdddd, more_sig_bit_idx = 5, least_sig_bit_idx = 2
-static enum vmd_ret write_byte(struct nrf24 *rd, uint8_t reg, uint8_t data, uint8_t more_sig_bit_idx, uint8_t least_sig_bit_idx)
+//ex) if you want to write 0bxxddddxx, data = 0bdddd, moreSigBitIdx = 5, lessSigBitIdx = 2
+static bool write_byte(struct Nrf24 *rd, uint8_t reg, uint8_t data, uint8_t moreSigBitIdx, uint8_t lessSigBitIdx)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 	uint8_t mask = 0;
-	uint8_t read_reg = 0;
+	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM( least_sig_bit_idx < more_sig_bit_idx);
-	VMD_ASSERT_PARAM(more_sig_bit_idx <= 7);
-	VMD_ASSERT_PARAM(least_sig_bit_idx <= 7);
+	VMD_ASSERT_PARAM(lessSigBitIdx < moreSigBitIdx);
+	VMD_ASSERT_PARAM(moreSigBitIdx <= 7);
+	VMD_ASSERT_PARAM(lessSigBitIdx <= 7);
 
-	for (int i = least_sig_bit_idx; i <= more_sig_bit_idx; i++) {
+	for (int i = lessSigBitIdx; i <= moreSigBitIdx; i++) {
 		mask |= _BV(i);
 	}
-	data <<= least_sig_bit_idx;
+	data <<= lessSigBitIdx;
 	data &= mask;
 
-	ret = read_spi(rd, reg, &read_reg, 1, NULL);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_spi(rd, reg, &tmpReg, 1, NULL);
+	if (ret != true) {
 		return ret;
 	}
 
-	read_reg &= ~mask;
-	read_reg |= data;
+	tmpReg &= ~mask;
+	tmpReg |= data;
 
-	return write_spi(rd, reg, &read_reg, 1, NULL);
+	return nrf24_write_spi(rd, reg, &tmpReg, 1, NULL);
 }
 
-//ex) more_sig_bit_idx = 5, least_sig_bit_idx = 3, then data = (0bxxdddxxx >> least_sig_bit_idx)
-static enum vmd_ret read_byte(struct nrf24 *rd, uint8_t reg, uint8_t *data, uint8_t more_sig_bit_idx, uint8_t least_sig_bit_idx)
+//ex) moreSigBitIdx = 5, lessSigBitIdx = 3, then data = (0bxxdddxxx >> lessSigBitIdx)
+static bool read_byte(struct Nrf24 *rd, uint8_t reg, uint8_t *data, uint8_t moreSigBitIdx, uint8_t lessSigBitIdx)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 	uint8_t mask = 0;
-	uint8_t read_reg = 0;
+	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM( least_sig_bit_idx < more_sig_bit_idx);
-	VMD_ASSERT_PARAM(more_sig_bit_idx <= 7);
-	VMD_ASSERT_PARAM(least_sig_bit_idx <= 7);
-	VMD_ASSERT_PARAM(NOT_NULL(data));
+	VMD_ASSERT_PARAM(lessSigBitIdx < moreSigBitIdx);
+	VMD_ASSERT_PARAM(moreSigBitIdx <= 7);
+	VMD_ASSERT_PARAM(lessSigBitIdx <= 7);
+	VMD_ASSERT_PARAM(data);
 
-	for (int i = least_sig_bit_idx; i <= more_sig_bit_idx; i++) {
+	for (int i = lessSigBitIdx; i <= moreSigBitIdx; i++) {
 		mask |= _BV(i);
 	}
 
-	ret = read_spi(rd, reg, &read_reg, 1, NULL);
+	ret = nrf24_read_spi(rd, reg, &tmpReg, 1, NULL);
 
-	read_reg &= mask;
-	read_reg >>= least_sig_bit_idx;
+	tmpReg &= mask;
+	tmpReg >>= lessSigBitIdx;
 
-	*data = read_reg;
+	*data = tmpReg;
 
 	return ret;
 }
 
-static enum vmd_ret write_bit(struct nrf24 *rd, uint8_t reg, bool en, uint8_t bit_idx)
+static bool nrf24_write_bit(struct Nrf24 *rd, uint8_t reg, bool en, uint8_t bitIdx)
 {
-	enum vmd_ret ret;
-	uint8_t read_reg = 0;
+	bool ret = false;
+	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM(bit_idx <= 7);
+	VMD_ASSERT_PARAM(bitIdx <= 7);
 
-	ret = read_spi(rd, reg, &read_reg, 1, NULL);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_spi(rd, reg, &tmpReg, 1, NULL);
+	if (ret != true) {
 		return ret;
 	}
 
-	read_reg &= ~(1 << bit_idx);
-	read_reg |= en << bit_idx;
+	tmpReg &= ~(1 << bitIdx);
+	tmpReg |= en << bitIdx;
 
-	return write_spi(rd, reg, &read_reg, 1, NULL);
+	return nrf24_write_spi(rd, reg, &tmpReg, 1, NULL);
 }
 
-static enum vmd_ret read_bit(struct nrf24 *rd, uint8_t reg, bool *is_en, uint8_t bit_idx)
+static bool nrf24_read_bit(struct Nrf24 *rd, uint8_t reg, bool *isEn, uint8_t bitIdx)
 {
-	enum vmd_ret ret;
-	uint8_t read_reg = 0;
+	bool ret = false;
+	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM(bit_idx <= 7);
-	VMD_ASSERT_PARAM(NOT_NULL(is_en));
+	VMD_ASSERT_PARAM(bitIdx <= 7);
+	VMD_ASSERT_PARAM((isEn));
 
-	ret = read_spi(rd, reg, &read_reg, 1, NULL);
+	ret = nrf24_read_spi(rd, reg, &tmpReg, 1, NULL);
 
-	*is_en = read_reg & _BV(bit_idx);
+	*isEn = tmpReg & _BV(bitIdx);
 
 	return ret;
 }
 
-enum vmd_ret nrf24_init(struct nrf24 *rd)
+bool nrf24_init(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
+	VMD_ASSERT_PARAM(rd);
+	VMD_ASSERT_PARAM(rd->cePort);
+	VMD_ASSERT_PARAM(rd->csPort);
+	VMD_ASSERT_PARAM(rd->hspi);
 	
 	dis_cs(rd);
 	dis_ce(rd);
 
 	for (int i = 0; i < 32; i++) {
-		rd->nop_buf[i] = NRF24_CMD_NOP;
+		rd->_nopBuf[i] = NRF24_CMD_NOP;
 	}
 	
-	return nrf24_en_power_up(rd, false);
+	return nrf24_en_power(rd, false);
 }
 
-enum vmd_ret nrf24_begin(struct nrf24 *rd)
+bool nrf24_begin(struct Nrf24 *rd)
 {
-	bool is_rx;
-	enum vmd_ret ret;
+	bool isRx;
+	bool ret = false;
 
-	ret = nrf24_get_pmode(rd, &is_rx);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_get_pmode(rd, &isRx);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (is_rx) {
+	if (isRx) {
 		en_ce(rd);
 	}
 
-	return nrf24_en_power_up(rd, true);
+	return nrf24_en_power(rd, true);
 }
 
-enum vmd_ret nrf24_deinit(struct nrf24 *rd)
+bool nrf24_deinit(struct Nrf24 *rd)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
-	ret = nrf24_en_power_up(rd, false);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_en_power(rd, false);
+	if (ret != true) {
 		return ret;
 	}
 
 	dis_ce(rd);
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 
 
-//actual transmitting
 //toggle ce pin. max 4ms
 //if enabled "enhanced shockburst" you can keep the pin on
-enum vmd_ret nrf24_w_tx_pld(struct nrf24 *rd, uint8_t *tx_pld, uint16_t size)
+bool nrf24_write_txPld(struct Nrf24 *rd, uint8_t *txPld, uint16_t size)
 {
 	const uint8_t reg = NRF24_CMD_W_TX_PAYLOAD;
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
 	VMD_ASSERT_PARAM(size >= 1);
 	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(tx_pld));
+	VMD_ASSERT_PARAM((rd));
+	VMD_ASSERT_PARAM((txPld));
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, tx_pld, rd->tmp_buf, size, 1000);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txPld, rd->_tmpBuf, size, 1000);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
 	en_ce(rd);
-	HAL_Delay(1);
+	HAL_Delay(1);	//toggle cePin to transmit actually
 	dis_ce(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
-//actual receiveing
 //recommand to call nrf24_is_rx_empty() to check is fifo available
-enum vmd_ret nrf24_r_rx_pld(struct nrf24 *rd, uint8_t *rx_pld, uint16_t size)
+bool nrf24_read_rxPld(struct Nrf24 *rd, uint8_t *rxPld, uint16_t size)
 {
 	const uint8_t reg = NRF24_CMD_R_RX_PAYLOAD;
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
 	VMD_ASSERT_PARAM(size >= 1);
 	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(rx_pld));
+	VMD_ASSERT_PARAM((rd));
+	VMD_ASSERT_PARAM(rxPld);
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, rd->nop_buf, rx_pld, size, 1000);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, rd->_nopBuf, rxPld, size, 1000);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //indicate "don't transmit ack(specific packet)" to receiver.
 //requirement : nrf24_en_dyn_ack()
-enum vmd_ret nrf24_w_tx_pld_no_ack(struct nrf24 *rd, uint8_t *tx_pld, uint16_t size)
+bool nrf24_write_txPldNoAck(struct Nrf24 *rd, uint8_t *txPld, uint16_t size)
 {
 	const uint8_t reg = NRF24_CMD_W_TX_PAYLOAD_NOACK;
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
 	VMD_ASSERT_PARAM(size >= 1);
 	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(tx_pld));
+	VMD_ASSERT_PARAM((rd));
+	VMD_ASSERT_PARAM(txPld);
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, tx_pld, rd->tmp_buf, size, 1000);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txPld, rd->_tmpBuf, size, 1000);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
@@ -318,20 +328,20 @@ enum vmd_ret nrf24_w_tx_pld_no_ack(struct nrf24 *rd, uint8_t *tx_pld, uint16_t s
 	HAL_Delay(1);
 	dis_ce(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //use in RX mode.
 //requirement : nrf24_en_ack_pld()
-enum vmd_ret nrf24_w_ack_pld(struct nrf24 *rd, uint8_t pipe, const uint8_t *ack_pld, uint8_t size)
+bool nrf24_write_ackPld(struct Nrf24 *rd, uint8_t pipe, const uint8_t *ackPld, uint8_t size)
 {
 	uint8_t reg = NRF24_CMD_W_ACK_PAYLOAD;
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
 	VMD_ASSERT_PARAM(size >= 1);
 	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(ack_pld));
+	VMD_ASSERT_PARAM((rd));
+	VMD_ASSERT_PARAM(ackPld);
 
 	VMD_ASSERT_PARAM(pipe <= 5);
 
@@ -339,404 +349,411 @@ enum vmd_ret nrf24_w_ack_pld(struct nrf24 *rd, uint8_t pipe, const uint8_t *ack_
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, ack_pld, rd->tmp_buf, size, 1000);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, ackPld, rd->_tmpBuf, size, 1000);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //don't call while transmitting
-enum vmd_ret nrf24_reuse_tx_pld(struct nrf24 *rd)
+bool nrf24_reuse_txPld(struct Nrf24 *rd)
 {
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_REUSE_TX_PL;
 
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
+	VMD_ASSERT_PARAM(rd);
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //requirement : nrf24_set_dpl()
 //description :Read RX payload width for the top in RX_FIFO
 //use in PRX(if enabled dpl specific packet) or PTX(if enabled ack_pld specific packet)
-enum vmd_ret nrf24_r_pld_width(struct nrf24 *rd, uint8_t *pld_width)
+bool nrf24_read_pldWidth(struct Nrf24 *rd, uint8_t *pldWidth)
 {
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_R_RX_PL_WID;
 
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(pld_width));
+	VMD_ASSERT_PARAM((rd));
+	VMD_ASSERT_PARAM(pldWidth);
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, pld_width, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, pldWidth, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}	
 
 	dis_cs(rd);
 
-	if (*pld_width > 32) {
-		nrf24_flush_rx(rd);
-		return VMD_FAIL;
+	if (*pldWidth > 32) {
+		nrf24_flush_rxBuf(rd);
+		return false;
 	}
 
-	return VMD_SUCC;
+	return true;
 }
 
-enum vmd_ret nrf24_r_status(struct nrf24 *rd, uint8_t *status)
+bool nrf24_read_status(struct Nrf24 *rd, uint8_t *status)
 {
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_NOP;
 
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
-	VMD_ASSERT_PARAM(NOT_NULL(status));
+	VMD_ASSERT_PARAM(rd);
+	VMD_ASSERT_PARAM(status);
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, status, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, status, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //use when  MAX_RT irq asserted
-enum vmd_ret nrf24_flush_tx(struct nrf24 *rd)
+bool nrf24_flush_txBuf(struct Nrf24 *rd)
 {
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_FLUSH_TX;
 
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
+	VMD_ASSERT_PARAM((rd));
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
 //use when nrf24_r_pld_width() return over 32
-enum vmd_ret nrf24_flush_rx(struct nrf24 *rd)
+bool nrf24_flush_rxBuf(struct Nrf24 *rd)
 {
-	HAL_StatusTypeDef spi_reslt;
+	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_FLUSH_RX;
 
-	VMD_ASSERT_PARAM(NOT_NULL(rd));
+	VMD_ASSERT_PARAM((rd));
 
 	en_cs(rd);
 
-	spi_reslt = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->status_reg, 1, 300);
-	if (spi_reslt != HAL_OK) {
-		return VMD_FAIL;
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	if (spiStatus != HAL_OK) {
+		dis_cs(rd);
+		return false;
 	}
 
 	dis_cs(rd);
 
-	return VMD_SUCC;
+	return true;
 }
 
-enum vmd_ret nrf24_set_irq(struct nrf24 *rd, bool RX_DR, bool TX_DS, bool MAX_RT)
+bool nrf24_en_irq(struct Nrf24 *rd, bool RX_DR, bool TX_DS, bool MAX_RT)
 {
 	return write_byte(rd, NRF24_REG_CONFIG, (!RX_DR) << 2 | (!TX_DS) << 1| (!MAX_RT) , 6, 4);
 }
 
-enum vmd_ret nrf24_get_irq(struct nrf24 *rd, bool *RX_DR, bool *TX_DS, bool *MAX_RT)
+bool nrf24_isEn_irq(struct Nrf24 *rd, bool *RX_DR, bool *TX_DS, bool *MAX_RT)
 {
-	uint8_t read_bits = 0;
-	enum vmd_ret ret;
+	uint8_t configReg = 0;
+	bool ret = false;
 
-	ret = read_byte(rd, NRF24_REG_CONFIG, &read_bits, 6, 4);
+	ret = read_byte(rd, NRF24_REG_CONFIG, &configReg, 6, 4);
 
-	if (NOT_NULL(RX_DR)) {
-		*RX_DR = !(read_bits & _BV(2));
+	if (RX_DR) {
+		*RX_DR = !(configReg & _BV(2));
 	}
 
-	if (NOT_NULL(TX_DS)) {
-		*TX_DS = !(read_bits & _BV(1));
+	if (TX_DS) {
+		*TX_DS = !(configReg & _BV(1));
 	}
 
-	if (NOT_NULL(MAX_RT)) {
-		*MAX_RT = !(read_bits & _BV(0));
+	if (MAX_RT) {
+		*MAX_RT = !(configReg & _BV(0));
 	}
 
 	return ret;
 }
 
 //use nrf24_clear_irq(), if irq asserted
-enum vmd_ret nrf24_is_asserted_irq(struct nrf24 *rd, bool *rx_dr, bool *tx_ds, bool *max_rt)
+bool nrf24_read_irq(struct Nrf24 *rd, bool *RX_DR, bool *TX_DS, bool *MAX_RT)
 {
-	uint8_t read_bits = 0;
-	enum vmd_ret ret;
+	uint8_t configReg = 0;
+	bool ret = false;
 
-	ret = read_byte(rd, NRF24_REG_STATUS, &read_bits, 6, 4);
+	ret = read_byte(rd, NRF24_REG_STATUS, &configReg, 6, 4);
 
-	if (NOT_NULL(rx_dr)) {
-		*rx_dr = read_bits & _BV(2);
+	if (RX_DR) {
+		*RX_DR = configReg & _BV(2);
 	}
 
-	if (NOT_NULL(tx_ds)) {
-		*tx_ds = read_bits & _BV(1);
+	if (TX_DS) {
+		*TX_DS = configReg & _BV(1);
 	}
 
-	if (NOT_NULL(max_rt)) {
-		*max_rt = read_bits & _BV(0);
+	if (MAX_RT) {
+		*MAX_RT = configReg & _BV(0);
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_clear_irq(struct nrf24 *rd, bool rx_dr, bool tx_ds, bool max_rt)
+bool nrf24_clear_irq(struct Nrf24 *rd, bool RX_DR, bool TX_DS, bool MAX_RT)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
-	ret = write_bit(rd, NRF24_REG_STATUS, rx_dr, 6);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_write_bit(rd, NRF24_REG_STATUS, RX_DR, 6);
+	if (ret != true) {
 		return ret;
 	}
 
-	ret = write_bit(rd, NRF24_REG_STATUS, tx_ds, 5);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_write_bit(rd, NRF24_REG_STATUS, TX_DS, 5);
+	if (ret != true) {
 		return ret;
 	}
 
-	return write_bit(rd, NRF24_REG_STATUS, max_rt, 4);
+	return nrf24_write_bit(rd, NRF24_REG_STATUS, MAX_RT, 4);
 
 }
 
-enum vmd_ret nrf24_set_crc(struct nrf24 *rd, uint8_t crc_byte_len)
+bool nrf24_set_crcLen(struct Nrf24 *rd, uint8_t crcLen)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
-	switch(crc_byte_len) {
+	switch(crcLen) {
 	case 1:
-		ret = write_bit(rd, NRF24_REG_CONFIG, true, 3);
-		if (ret != VMD_SUCC) {
+		ret = nrf24_write_bit(rd, NRF24_REG_CONFIG, true, 3);
+		if (ret != true) {
 			return ret;
 		}
-		ret = write_bit(rd, NRF24_REG_CONFIG, false, 2);
-		if (ret != VMD_SUCC) {
+		ret = nrf24_write_bit(rd, NRF24_REG_CONFIG, false, 2);
+		if (ret != true) {
 			return ret;
 		}
 		break;
 	case 2:
-		ret = write_bit(rd, NRF24_REG_CONFIG, true, 3);
-		if (ret != VMD_SUCC) {
+		ret = nrf24_write_bit(rd, NRF24_REG_CONFIG, true, 3);
+		if (ret != true) {
 			return ret;
 		}
-		ret = write_bit(rd, NRF24_REG_CONFIG, true, 2);
-		if (ret != VMD_SUCC) {
+		ret = nrf24_write_bit(rd, NRF24_REG_CONFIG, true, 2);
+		if (ret != true) {
 			return ret;
 		}
 		break;
 	case 0:
-		ret = write_bit(rd, NRF24_REG_CONFIG, false, 3);
-		if (ret != VMD_SUCC) {
+		ret = nrf24_write_bit(rd, NRF24_REG_CONFIG, false, 3);
+		if (ret != true) {
 			return ret;
 		}
 		break;
 	default:
-		return VMD_FAIL;
+		return false;
 	}
 
-	return VMD_SUCC;
+	return true;
 }
 
-enum vmd_ret nrf24_get_crc(struct nrf24 *rd, uint8_t *crc_byte_len)
+bool nrf24_get_crcLen(struct Nrf24 *rd, uint8_t *crcLen)
 {
-	enum vmd_ret ret;
-	bool isen_crc;
-	bool is_crc_2byte;
+	bool ret = false;
+	bool isEn_crc;
+	bool is_crcLen2byte;
 
-	ret = read_bit(rd, NRF24_REG_CONFIG, &isen_crc, 3);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_bit(rd, NRF24_REG_CONFIG, &isEn_crc, 3);
+	if (ret != true) {
 		return ret;
 	}
 
-	ret = read_bit(rd, NRF24_REG_CONFIG, &is_crc_2byte, 2);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_bit(rd, NRF24_REG_CONFIG, &is_crcLen2byte, 2);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (!isen_crc) {
-		*crc_byte_len = 0;
-	} else if (is_crc_2byte) {
-		*crc_byte_len = 2;
+	if (!isEn_crc) {
+		*crcLen = 0;
+	} else if (is_crcLen2byte) {
+		*crcLen = 2;
 	} else {
-		*crc_byte_len = 1;
+		*crcLen = 1;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_en_power_up(struct nrf24 *rd, bool en)
+bool nrf24_en_power(struct Nrf24 *rd, bool en)
 {
-	return write_bit(rd, NRF24_REG_CONFIG, en, 1);
+	return nrf24_write_bit(rd, NRF24_REG_CONFIG, en, 1);
 }
 
-enum vmd_ret nrf24_isen_power_up(struct nrf24 *rd, bool *is_en)
+bool nrf24_isEn_power(struct Nrf24 *rd, bool *isEn)
 {
-	return read_bit(rd, NRF24_REG_CONFIG, is_en, 1);
+	return nrf24_read_bit(rd, NRF24_REG_CONFIG, isEn, 1);
 }
 
-enum vmd_ret nrf24_set_pmode(struct nrf24 *rd, bool is_rx)
+bool nrf24_set_pmode(struct Nrf24 *rd, bool isRx)
 {
-	return write_bit(rd, NRF24_REG_CONFIG, is_rx, 0);
+	return nrf24_write_bit(rd, NRF24_REG_CONFIG, isRx, 0);
 }
 
-enum vmd_ret nrf24_get_pmode(struct nrf24 *rd, bool *is_rx)
+bool nrf24_get_pmode(struct Nrf24 *rd, bool *isRx)
 {
-	return read_bit(rd, NRF24_REG_CONFIG, is_rx, 0);
+	return nrf24_read_bit(rd, NRF24_REG_CONFIG, isRx, 0);
 }
 
-enum vmd_ret nrf24_set_auto_ack(struct nrf24 *rd, uint8_t pipe, bool en)
+bool nrf24_en_autoAck(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
-	return write_bit(rd, NRF24_REG_EN_AA, en, pipe);
+	return nrf24_write_bit(rd, NRF24_REG_EN_AA, en, pipe);
 }
 
-enum vmd_ret nrf24_get_auto_ack(struct nrf24 *rd, uint8_t pipe, bool *is_en)
+bool nrf24_isEn_autoAck(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {	
 	VMD_ASSERT_PARAM(pipe <= 5);
-	return read_bit(rd, NRF24_REG_EN_AA, is_en, pipe);
+	return nrf24_read_bit(rd, NRF24_REG_EN_AA, isEn, pipe);
 }
 
-enum vmd_ret nrf24_en_rx_addr(struct nrf24 *rd, uint8_t pipe, bool en)
+bool nrf24_en_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
-	return write_bit(rd, NRF24_REG_EN_RXADDR, en, pipe);
+	return nrf24_write_bit(rd, NRF24_REG_EN_RXADDR, en, pipe);
 }
-enum vmd_ret nrf24_isen_rx_addr(struct nrf24 *rd, uint8_t pipe, bool *is_en)
+bool nrf24_isEn_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
-	return read_bit(rd, NRF24_REG_EN_RXADDR, is_en, pipe);
+	return nrf24_read_bit(rd, NRF24_REG_EN_RXADDR, isEn, pipe);
 }
 
-enum vmd_ret nrf24_set_addr_width(struct nrf24 *rd, uint8_t addr_width)
+bool nrf24_set_addrWidth(struct Nrf24 *rd, uint8_t addrWidth)
 {
-	VMD_ASSERT_PARAM(addr_width >= 3 && addr_width <= 5);
+	VMD_ASSERT_PARAM(addrWidth >= 3 && addrWidth <= 5);
 
-	return write_byte(rd, NRF24_REG_SETUP_AW, addr_width - 2, 1, 0);
+	return write_byte(rd, NRF24_REG_SETUP_AW, addrWidth - 2, 1, 0);
 }
 
-enum vmd_ret nrf24_get_addr_width(struct nrf24 *rd, uint8_t *addr_width)
+bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addrWidth)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
-	VMD_ASSERT_PARAM(NOT_NULL(addr_width));
+	VMD_ASSERT_PARAM(addrWidth);
 
-	ret = read_byte(rd, NRF24_REG_SETUP_AW, addr_width, 1, 0);
+	ret = read_byte(rd, NRF24_REG_SETUP_AW, addrWidth, 1, 0);
 	
-	*addr_width += 2;
-	if (*addr_width > 5) {
-		return VMD_FAIL;
+	*addrWidth += 2;
+	if (*addrWidth > 5) {
+		return false;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_ard(struct nrf24 *rd, uint16_t auto_retr_delay)
+bool nrf24_set_ARDelay(struct Nrf24 *rd, uint16_t ARDelay)
 {
-	VMD_ASSERT_PARAM(auto_retr_delay >= 250 && auto_retr_delay <= 4000);
+	VMD_ASSERT_PARAM(ARDelay >= 250 && ARDelay <= 4000);
 
-	auto_retr_delay /= 250;
-	auto_retr_delay--;
+	ARDelay /= 250;
+	ARDelay--;
 
-	return write_byte(rd, NRF24_REG_SETUP_RETR, auto_retr_delay, 7, 4 );
+	return write_byte(rd, NRF24_REG_SETUP_RETR, ARDelay, 7, 4 );
 }
 
-enum vmd_ret nrf24_get_ard(struct nrf24 *rd, uint16_t *auto_retr_delay)
+bool nrf24_get_ARDelay(struct Nrf24 *rd, uint16_t *ARDelay)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 	uint8_t tmp;
 
-	VMD_ASSERT_PARAM(NOT_NULL(auto_retr_delay));
+	VMD_ASSERT_PARAM(ARDelay);
 
 	ret = read_byte(rd, NRF24_REG_SETUP_RETR, &tmp, 7, 4);
-	if (ret != VMD_SUCC) {
+	if (ret != true) {
 		return ret;
 	}
 
-	*auto_retr_delay = tmp;
-	*auto_retr_delay += 1;
-	*auto_retr_delay *= 250;
+	*ARDelay = tmp;
+	*ARDelay += 1;
+	*ARDelay *= 250;
 
-	if (*auto_retr_delay < 250 || *auto_retr_delay > 4000) {
-		return VMD_FAIL;
+	if (*ARDelay < 250 || *ARDelay > 4000) {
+		return false;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_arc(struct nrf24 *rd, uint8_t auto_retr_cnt)
+bool nrf24_set_ARCnt(struct Nrf24 *rd, uint8_t ARCnt)
 {
-	VMD_ASSERT_PARAM(auto_retr_cnt <= 15);
-	return write_byte(rd, NRF24_REG_SETUP_RETR, auto_retr_cnt, 3, 0);
+	VMD_ASSERT_PARAM(ARCnt <= 15);
+	return write_byte(rd, NRF24_REG_SETUP_RETR, ARCnt, 3, 0);
 }
 
-enum vmd_ret nrf24_get_arc(struct nrf24 *rd, uint8_t *auto_retr_cnt)
+bool nrf24_get_ARCnt(struct Nrf24 *rd, uint8_t *ARCnt)
 {
+	bool ret = false;
 
-	enum vmd_ret ret;
-
-	ret = read_byte(rd, NRF24_REG_SETUP_RETR, auto_retr_cnt, 3, 0);
-	if (ret != VMD_SUCC) {
+	ret = read_byte(rd, NRF24_REG_SETUP_RETR, ARCnt, 3, 0);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (*auto_retr_cnt > 15) {
-		return VMD_FAIL;
+	if (*ARCnt > 15) {
+		return false;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_channel(struct nrf24 *rd, uint16_t Mhz)
+bool nrf24_set_channel(struct Nrf24 *rd, uint16_t Mhz)
 {
 	VMD_ASSERT_PARAM(Mhz >= 2400 && Mhz <= 2525);
 	return write_byte(rd, NRF24_REG_RF_CH, Mhz - 2400, 6, 0);
 }
 
-enum vmd_ret nrf24_get_channel(struct nrf24 *rd, uint16_t *Mhz)
+bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *Mhz)
 {
-	enum vmd_ret ret = true;
+	bool ret = false;
 	uint8_t tmp = 0;
 
-	VMD_ASSERT_PARAM(NOT_NULL(Mhz));
+	VMD_ASSERT_PARAM(Mhz);
 
 	ret = read_byte(rd, NRF24_REG_RF_CH, &tmp, 6, 0);
-	if (ret != VMD_SUCC) {
+	if (ret != true) {
 		return ret;
 	}
 
@@ -744,283 +761,364 @@ enum vmd_ret nrf24_get_channel(struct nrf24 *rd, uint16_t *Mhz)
 	*Mhz += 2400;
 
 	if (*Mhz < 2400 || *Mhz > 2525)
-		return VMD_FAIL;
+		return false;
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_data_rate(struct nrf24 *rd, enum nrf24_data_rate data_rate)
+bool nrf24_set_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate dataRate)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
-	ret = write_bit(rd, NRF24_REG_RF_SETUP, false, 5);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_write_bit(rd, NRF24_REG_RF_SETUP, false, 5);
+	if (ret != true) {
 		return ret;
 	}
 
-	ret = write_bit(rd, NRF24_REG_RF_SETUP, false, 3);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_write_bit(rd, NRF24_REG_RF_SETUP, false, 3);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (data_rate == NRF24_2MBPS) {
-		return write_bit(rd, NRF24_REG_RF_SETUP, true, 3);
-	} else if(data_rate == NRF24_250KBPS) {
-		return write_bit(rd, NRF24_REG_RF_SETUP, true, 5);
-	} else if(data_rate != NRF24_1MBPS) {
-		return VMD_FAIL;
+	if (dataRate == NRF24_2MBPS) {
+		return nrf24_write_bit(rd, NRF24_REG_RF_SETUP, true, 3);
+	} else if(dataRate == NRF24_250KBPS) {
+		return nrf24_write_bit(rd, NRF24_REG_RF_SETUP, true, 5);
+	} else if(dataRate != NRF24_1MBPS) {
+		return false;
 	}
 
 	return ret;
 
 }
 
-enum vmd_ret nrf24_get_data_rate(struct nrf24 *rd, enum nrf24_data_rate *data_rate)
+bool nrf24_get_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate *dataRate)
 {
-	enum vmd_ret ret;
-	bool bit_low = 0;
-	bool bit_high = 0;
+	bool ret = false;
+	bool lowBit = 0;
+	bool highBit = 0;
 
-	VMD_ASSERT_PARAM(NOT_NULL(data_rate));
+	VMD_ASSERT_PARAM(dataRate);
 
-	ret = read_bit(rd, NRF24_REG_RF_SETUP, &bit_low, 5);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_bit(rd, NRF24_REG_RF_SETUP, &lowBit, 5);
+	if (ret != true) {
 		return ret;
 	}
 
-	ret = read_bit(rd, NRF24_REG_RF_SETUP, &bit_high, 3);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_bit(rd, NRF24_REG_RF_SETUP, &highBit, 3);
+	if (ret != true) {
 		return ret;
 	}
 
-	*data_rate = NRF24_1MBPS;
+	*dataRate = NRF24_1MBPS;
 
-	if (bit_low && bit_high) {
-		return VMD_FAIL;
-	} else if (bit_low) {
-		*data_rate = NRF24_250KBPS;
-	} else if (bit_high) {
-		*data_rate = NRF24_2MBPS;
+	if (lowBit && highBit) {
+		return false;
+	} else if (lowBit) {
+		*dataRate = NRF24_250KBPS;
+	} else if (highBit) {
+		*dataRate = NRF24_2MBPS;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_pa_power(struct nrf24 *rd, enum nrf24_pa_power pa_pwr)
+bool nrf24_set_paPower(struct Nrf24 *rd, enum Nrf24_PaPower paPower)
 {
-	return write_byte(rd, NRF24_REG_RF_SETUP, pa_pwr, 2, 1);
+	return write_byte(rd, NRF24_REG_RF_SETUP, paPower, 2, 1);
 }
 
-enum vmd_ret nrf24_get_pa_power(struct nrf24 *rd, enum nrf24_pa_power *pa_pwr)
+bool nrf24_get_paPower(struct Nrf24 *rd, enum Nrf24_PaPower *paPower)
 {
-	return read_byte(rd, NRF24_REG_RF_SETUP, pa_pwr, 2, 1);
+	return read_byte(rd, NRF24_REG_RF_SETUP, paPower, 2, 1);
 }
 
-enum vmd_ret nrf24_r_pipe_num(struct nrf24 *rd, uint8_t *pipe)
+bool nrf24_read_pipeNum(struct Nrf24 *rd, uint8_t *pipe)
 {
-	enum vmd_ret ret;
+	bool ret = false;
+
 	ret = read_byte(rd, NRF24_REG_STATUS, pipe, 3, 1);
-	if (ret != VMD_SUCC) {
+	if (ret != true) {
 		return ret;
 	}
 
 	if (*pipe > 5) {
-		return VMD_FAIL;
+		return false;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_is_tx_full(struct nrf24 *rd, bool *is_full)
+bool nrf24_is_txBufFull(struct Nrf24 *rd, bool *is_full)
 {	
-	return read_bit(rd, NRF24_REG_STATUS, is_full, 0);
+	return nrf24_read_bit(rd, NRF24_REG_STATUS, is_full, 0);
 }
 
-enum vmd_ret nrf24_is_tx_empty(struct nrf24 *rd, bool *is_empty)
+bool nrf24_is_txBufEmpty(struct Nrf24 *rd, bool *is_empty)
 {
-	return read_bit(rd, NRF24_REG_FIFO_STATUS, is_empty, 4);
+	return nrf24_read_bit(rd, NRF24_REG_FIFO_STATUS, is_empty, 4);
 }
 
-enum vmd_ret nrf24_is_rx_full(struct nrf24 *rd, bool *is_full)
+bool nrf24_is_rxBufFull(struct Nrf24 *rd, bool *is_full)
 {
-	return read_bit(rd, NRF24_REG_FIFO_STATUS, is_full, 1);
+	return nrf24_read_bit(rd, NRF24_REG_FIFO_STATUS, is_full, 1);
 }
 
-enum vmd_ret nrf24_is_rx_empty(struct nrf24 *rd, bool *is_empty)
+bool nrf24_is_rxBufEmpty(struct Nrf24 *rd, bool *is_empty)
 {
-	return read_bit(rd, NRF24_REG_FIFO_STATUS, is_empty, 0);
+	return nrf24_read_bit(rd, NRF24_REG_FIFO_STATUS, is_empty, 0);
 }
 
-//packet loss count. each max_rt asserted(arc) == +1 plost_cnt
+//packet loss count. each MAX_RT asserted(arc) == +1 plost_cnt
 //write value in RF_CH register to call nrf24_set_channel() to reset plos_cnt.
-enum vmd_ret nrf24_r_plos_cnt(struct nrf24 *rd, uint8_t *plos_cnt)
+bool nrf24_read_plosCnt(struct Nrf24 *rd, uint8_t *plosCnt)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
-	VMD_ASSERT_PARAM(NOT_NULL(plos_cnt));
+	VMD_ASSERT_PARAM(plosCnt);
 
-	ret = read_byte(rd, NRF24_REG_OBSERVE_TX, plos_cnt, 7, 4);
-	if (ret != VMD_SUCC) {
+	ret = read_byte(rd, NRF24_REG_OBSERVE_TX, plosCnt, 7, 4);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (*plos_cnt > 15) {
-		return VMD_FAIL;
+	if (*plosCnt > 15) {
+		return false;
 	}
 
 	return ret;
 }
 
 //not get set value. Read realtime value!
-enum vmd_ret nrf24_r_arc_cnt(struct nrf24 *rd, uint8_t *arc_cnt)
+bool nrf24_read_ARCnt(struct Nrf24 *rd, uint8_t *ARCnt)
 {
-	enum vmd_ret ret = true;
+	bool ret = false;
 
-	VMD_ASSERT_PARAM(NOT_NULL(arc_cnt));
+	VMD_ASSERT_PARAM(ARCnt);
 
-	ret = read_byte(rd, NRF24_REG_OBSERVE_TX, arc_cnt, 3, 0);
-	if (ret != VMD_SUCC) {
+	ret = read_byte(rd, NRF24_REG_OBSERVE_TX, ARCnt, 3, 0);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (*arc_cnt > 15) {
-		return VMD_FAIL;
+	if (*ARCnt > 15) {
+		return false;
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_rx_addr(struct nrf24 *rd, uint8_t pipe, uint8_t *rx_addr, uint8_t width)
+bool nrf24_set_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t width)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 	uint8_t read_addr[5] = {0,};
 
+	VMD_ASSERT_PARAM(rxAddr);
 	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
 	VMD_ASSERT_PARAM(pipe <= 5);
 
 	if (pipe == 0 || pipe == 1) {
-		return write_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rx_addr, width, NULL);
+		return nrf24_write_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rxAddr, width, NULL);
 	}
 
-	ret = read_spi(rd, NRF24_REG_RX_ADDR_P1, read_addr, width, NULL);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_spi(rd, NRF24_REG_RX_ADDR_P1, read_addr, width, NULL);
+	if (ret != true) {
 		return ret;
 	}
 
 	for (int i = 1; i < width; i++) {
-		if (read_addr[i] != rx_addr[i]) {
-			return VMD_FAIL;
+		if (read_addr[i] != rxAddr[i]) {
+			return false;
 		}
 	}
 
-	return write_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rx_addr, 1, NULL);
+	return nrf24_write_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rxAddr, 1, NULL);
 }
 
-enum vmd_ret nrf24_get_rx_addr(struct nrf24 *rd, uint8_t pipe, uint8_t *rx_addr, uint8_t width)
+bool nrf24_get_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t width)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
 	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
 	VMD_ASSERT_PARAM(pipe <= 5);
 
 	if (pipe == 0) {
-		return read_spi(rd, NRF24_REG_RX_ADDR_P0, rx_addr, width, NULL);
+		return nrf24_read_spi(rd, NRF24_REG_RX_ADDR_P0, rxAddr, width, NULL);
 	}
 
-	ret = read_spi(rd, NRF24_REG_RX_ADDR_P1, rx_addr, width, NULL);
-	if (ret != VMD_SUCC) {
+	ret = nrf24_read_spi(rd, NRF24_REG_RX_ADDR_P1, rxAddr, width, NULL);
+	if (ret != true) {
 		return ret;
 	}
 
 	if (pipe != 1) {
-		ret = read_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rx_addr, 1, NULL);
+		ret = nrf24_read_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rxAddr, 1, NULL);
 	}
 
 	return ret;
 }
 
-enum vmd_ret nrf24_set_tx_addr(struct nrf24 *rd, uint8_t *tx_addr, uint8_t width)
+bool nrf24_set_txAddr(struct Nrf24 *rd, uint8_t *txAddr, uint8_t width)
 {
 	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
-	return write_spi(rd, NRF24_REG_TX_ADDR, tx_addr, width, NULL);
+	return nrf24_write_spi(rd, NRF24_REG_TX_ADDR, txAddr, width, NULL);
 }
 
-enum vmd_ret nrf24_get_tx_addr(struct nrf24 *rd, uint8_t *tx_addr, uint8_t width)
+bool nrf24_get_txAddr(struct Nrf24 *rd, uint8_t *txAddr, uint8_t width)
 {
 	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
-	return read_spi(rd, NRF24_REG_TX_ADDR, tx_addr, width, NULL);
+	return nrf24_read_spi(rd, NRF24_REG_TX_ADDR, txAddr, width, NULL);
 }
 
-enum vmd_ret nrf24_set_rx_pld_width(struct nrf24 *rd, uint8_t pipe, uint8_t pld_width)
+bool nrf24_set_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t pldWidth)
 {
-	VMD_ASSERT_PARAM(pld_width <= 32);
+	VMD_ASSERT_PARAM(pldWidth <= 32);
 	VMD_ASSERT_PARAM(pipe <= 5);
 
-	return write_byte(rd, NRF24_REG_RX_PW_P0 + pipe, pld_width, 5, 0);
+	return write_byte(rd, NRF24_REG_RX_PW_P0 + pipe, pldWidth, 5, 0);
 }
 
-enum vmd_ret nrf24_get_rx_pld_width(struct nrf24 *rd, uint8_t pipe, uint8_t *pld_width)
+bool nrf24_get_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t *pldWidth)
 {
-	enum vmd_ret ret;
+	bool ret = false;
 
 	VMD_ASSERT_PARAM(pipe <= 5);
 
-	ret = read_byte(rd, NRF24_REG_RX_PW_P0 + pipe, pld_width, 5, 0);
-	if (ret != VMD_SUCC) {
+	ret = read_byte(rd, NRF24_REG_RX_PW_P0 + pipe, pldWidth, 5, 0);
+	if (ret != true) {
 		return ret;
 	}
 
-	if (*pld_width > 32) {
-		ret = nrf24_flush_rx(rd);	//todo: check
-		// if (ret != VMD_SUCC) {
+	if (*pldWidth > 32) {
+		ret = nrf24_flush_rxBuf(rd);	//todo: check
+		// if (ret != true) {
 		// 	return ret;
 		// }
-		return VMD_FAIL;
+		return false;
 	}
 
 	return ret;
 }
 //requirement: nrf24_en_auto_ack, nrf24_en_dpl(),
-enum vmd_ret nrf24_set_dpl(struct nrf24 *rd, uint8_t pipe, bool en)
+bool nrf24_set_DPLPipe(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
-	return write_bit(rd, NRF24_REG_DYNPD, en, pipe);
+	return nrf24_write_bit(rd, NRF24_REG_DYNPD, en, pipe);
 }
 
-enum vmd_ret nrf24_get_dpl(struct nrf24 *rd, uint8_t pipe, bool *is_en)
+bool nrf24_get_DPLPipe(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
-	return read_bit(rd, NRF24_REG_DYNPD, is_en, pipe);
+	return nrf24_read_bit(rd, NRF24_REG_DYNPD, isEn, pipe);
 
 }
 
-enum vmd_ret nrf24_en_dpl(struct nrf24 *rd, bool en)
+bool nrf24_en_DPL(struct Nrf24 *rd, bool en)
 {
-	return write_bit(rd, NRF24_REG_FEATURE, en, 2);
+	return nrf24_write_bit(rd, NRF24_REG_FEATURE, en, 2);
 }
 
-enum vmd_ret nrf24_isen_dpl(struct nrf24 *rd, bool *is_en)
+bool nrf24_isEn_DPL(struct Nrf24 *rd, bool *isEn)
 {
-	return read_bit(rd, NRF24_REG_FEATURE, is_en, 2);
+	return nrf24_read_bit(rd, NRF24_REG_FEATURE, isEn, 2);
 }
 
 //requirement : nrf24_set_dpl()
 //specific pipe that dpl feature on.
-enum vmd_ret nrf24_en_ack_pld(struct nrf24 *rd, bool en)
+bool nrf24_en_ackPld(struct Nrf24 *rd, bool en)
 {
-	return write_bit(rd, NRF24_REG_FEATURE, en, 1);
+	return nrf24_write_bit(rd, NRF24_REG_FEATURE, en, 1);
 }
-enum vmd_ret nrf24_isen_ack_pld(struct nrf24 *rd, bool *is_en)
+bool nrf24_isEn_ackPld(struct Nrf24 *rd, bool *isEn)
 {
-	return read_bit(rd, NRF24_REG_FEATURE, is_en, 1);
-}
-
-enum vmd_ret nrf24_en_dyn_ack(struct nrf24 *rd, bool en)
-{
-	return write_bit(rd, NRF24_REG_FEATURE, en, 0);
+	return nrf24_read_bit(rd, NRF24_REG_FEATURE, isEn, 1);
 }
 
-enum vmd_ret nrf24_isen_dyn_ack(struct nrf24 *rd, bool *is_en)
+bool nrf24_en_dynAck(struct Nrf24 *rd, bool en)
 {
-	return read_bit(rd, NRF24_REG_FEATURE, is_en, 0);
+	return nrf24_write_bit(rd, NRF24_REG_FEATURE, en, 0);
 }
+
+bool nrf24_isEn_dynAck(struct Nrf24 *rd, bool *isEn)
+{
+	return nrf24_read_bit(rd, NRF24_REG_FEATURE, isEn, 0);
+}
+
+
+bool nrf24_init_arduinoStyle(struct Nrf24 *rd)
+{
+	bool ret = false;
+
+	ret = nrf24_set_ARCnt(rd, 15);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_set_ARDelay(rd, 250 * 5);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_set_dataRate(rd, NRF24_1MBPS);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_en_ackPld(rd, false);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_en_DPL(rd, false);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_en_dynAck(rd, false);
+	if (ret != true)
+		return ret;
+
+	for (int i = 0; i < 6; i++) {
+		ret = nrf24_set_DPLPipe(rd, i, false);
+		if (ret != true)
+			return ret;
+	}
+	for (int i = 0; i < 6; i++) {
+		ret = nrf24_en_autoAck(rd, i, true);
+		if (ret != true)
+			return ret;
+	}
+
+	ret = nrf24_en_rxAddr(rd, 0, true);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_en_rxAddr(rd, 1, true);
+	if (ret != true)
+		return ret;
+
+	for (int i = 0; i < 6; i++)
+		ret = nrf24_set_rxPldWidth(rd, i, 32);
+
+	ret = nrf24_set_addrWidth(rd, 5);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_set_channel(rd, 2476);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_clear_irq(rd, true, true, true);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_flush_txBuf(rd);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_flush_rxBuf(rd);
+	if (ret != true)
+		return ret;
+
+	ret = nrf24_set_crcLen(rd, 2);
+	if (ret != true)
+		return ret;
+
+	return ret;
+}
+
