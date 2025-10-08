@@ -1074,7 +1074,7 @@ bool nrf24_init_arduinoStyle(struct Nrf24 *rd)
 		return ret;
 
 	for (int i = 0; i < 6; i++) {
-		ret = nrf24_set_DPLPipe(rd, i, false);
+		ret = nrf24_set_DPL(rd, i, false);
 		if (ret != true)
 			return ret;
 	}
