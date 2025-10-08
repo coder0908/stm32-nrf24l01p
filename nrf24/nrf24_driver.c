@@ -5,7 +5,8 @@
  *      Author: coder0908
  */
 
-#include "nrf24_driver.h"
+
+#include "nrf24l01plus_driver.h"
 
 #define _BV(bit) (1 << bit)
 
@@ -46,13 +47,13 @@ static bool nrf24_write_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *txBuf, uint1
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->_statusReg):status, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->statusReg):status, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
 	}
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txBuf, rd->_tmpBuf, size, 1000);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txBuf, rd->tmpBuf, size, 1000);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -76,13 +77,13 @@ static bool nrf24_read_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *rxBuf, uint16
 	
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->_statusReg):status, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, (status == NULL)?&(rd->statusReg):status, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
 	}
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, rd->_nopBuf, rxBuf, size, 1000);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, rd->nopBuf, rxBuf, size, 1000);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -191,7 +192,7 @@ bool nrf24_init(struct Nrf24 *rd)
 	dis_ce(rd);
 
 	for (int i = 0; i < 32; i++) {
-		rd->_nopBuf[i] = NRF24_CMD_NOP;
+		rd->nopBuf[i] = NRF24_CMD_NOP;
 	}
 	
 	return nrf24_en_power(rd, false);
@@ -201,6 +202,8 @@ bool nrf24_begin(struct Nrf24 *rd)
 {
 	bool isRx;
 	bool ret = false;
+	uint8_t status;
+
 
 	ret = nrf24_get_pmode(rd, &isRx);
 	if (ret != true) {
@@ -209,6 +212,11 @@ bool nrf24_begin(struct Nrf24 *rd)
 
 	if (isRx) {
 		en_ce(rd);
+	}
+
+	ret = nrf24_read_status(rd, &status);
+	if (status != 14) {
+		return false;
 	}
 
 	return nrf24_en_power(rd, true);
@@ -245,13 +253,13 @@ bool nrf24_write_txPld(struct Nrf24 *rd, uint8_t *txPld, uint16_t size)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
 	}
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txPld, rd->_tmpBuf, size, 1000);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txPld, rd->tmpBuf, size, 1000);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -279,13 +287,13 @@ bool nrf24_read_rxPld(struct Nrf24 *rd, uint8_t *rxPld, uint16_t size)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
 	}
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, rd->_nopBuf, rxPld, size, 1000);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, rd->nopBuf, rxPld, size, 1000);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -310,13 +318,13 @@ bool nrf24_write_txPldNoAck(struct Nrf24 *rd, uint8_t *txPld, uint16_t size)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
 	}
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txPld, rd->_tmpBuf, size, 1000);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, txPld, rd->tmpBuf, size, 1000);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -349,13 +357,13 @@ bool nrf24_write_ackPld(struct Nrf24 *rd, uint8_t pipe, const uint8_t *ackPld, u
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
 	}
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, ackPld, rd->_tmpBuf, size, 1000);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, ackPld, rd->tmpBuf, size, 1000);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -376,7 +384,7 @@ bool nrf24_reuse_txPld(struct Nrf24 *rd)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -400,7 +408,7 @@ bool nrf24_read_pldWidth(struct Nrf24 *rd, uint8_t *pldWidth)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -453,7 +461,7 @@ bool nrf24_flush_txBuf(struct Nrf24 *rd)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -474,7 +482,7 @@ bool nrf24_flush_rxBuf(struct Nrf24 *rd)
 
 	en_cs(rd);
 
-	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->_statusReg, 1, 300);
+	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
 	if (spiStatus != HAL_OK) {
 		dis_cs(rd);
 		return false;
@@ -684,7 +692,7 @@ bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addrWidth)
 	return ret;
 }
 
-bool nrf24_set_ARDelay(struct Nrf24 *rd, uint16_t ARDelay)
+bool nrf24_set_ARD(struct Nrf24 *rd, uint16_t ARDelay)
 {
 	VMD_ASSERT_PARAM(ARDelay >= 250 && ARDelay <= 4000);
 
@@ -717,7 +725,7 @@ bool nrf24_get_ARDelay(struct Nrf24 *rd, uint16_t *ARDelay)
 	return ret;
 }
 
-bool nrf24_set_ARCnt(struct Nrf24 *rd, uint8_t ARCnt)
+bool nrf24_set_ARC(struct Nrf24 *rd, uint8_t ARCnt)
 {
 	VMD_ASSERT_PARAM(ARCnt <= 15);
 	return write_byte(rd, NRF24_REG_SETUP_RETR, ARCnt, 3, 0);
@@ -1000,13 +1008,13 @@ bool nrf24_get_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t *pldWidth)
 	return ret;
 }
 //requirement: nrf24_en_auto_ack, nrf24_en_dpl(),
-bool nrf24_set_DPLPipe(struct Nrf24 *rd, uint8_t pipe, bool en)
+bool nrf24_set_DPL(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
 	return nrf24_write_bit(rd, NRF24_REG_DYNPD, en, pipe);
 }
 
-bool nrf24_get_DPLPipe(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
+bool nrf24_get_DPL(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {
 	VMD_ASSERT_PARAM(pipe <= 5);
 	return nrf24_read_bit(rd, NRF24_REG_DYNPD, isEn, pipe);
@@ -1049,11 +1057,11 @@ bool nrf24_init_arduinoStyle(struct Nrf24 *rd)
 {
 	bool ret = false;
 
-	ret = nrf24_set_ARCnt(rd, 15);
+	ret = nrf24_set_ARC(rd, 15);
 	if (ret != true)
 		return ret;
 
-	ret = nrf24_set_ARDelay(rd, 250 * 5);
+	ret = nrf24_set_ARD(rd, 250 * 5);
 	if (ret != true)
 		return ret;
 
@@ -1121,4 +1129,3 @@ bool nrf24_init_arduinoStyle(struct Nrf24 *rd)
 
 	return ret;
 }
-
