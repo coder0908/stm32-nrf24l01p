@@ -202,7 +202,7 @@ bool nrf24_begin(struct Nrf24 *rd)
 {
 	bool isRx;
 	bool ret = false;
-	uint8_t status;
+	uint8_t statusReg;
 
 
 	ret = nrf24_get_pmode(rd, &isRx);
@@ -214,8 +214,8 @@ bool nrf24_begin(struct Nrf24 *rd)
 		en_ce(rd);
 	}
 
-	ret = nrf24_read_status(rd, &status);
-	if (status != 14) {
+	ret = nrf24_read_status(rd, &statusReg);
+	if (statusReg != 14) {
 		return false;
 	}
 
