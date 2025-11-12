@@ -898,18 +898,18 @@ bool nrf24_read_plosCnt(struct Nrf24 *rd, uint8_t *plosCnt)
 }
 
 //not get set value. Read realtime value!
-bool nrf24_read_ARCnt(struct Nrf24 *rd, uint8_t *ARCnt)
+bool nrf24_read_arc(struct Nrf24 *rd, uint8_t *arc)
 {
 	bool ret = false;
 
-	VMD_ASSERT_PARAM(ARCnt);
+	VMD_ASSERT_PARAM(arc);
 
-	ret = read_byte(rd, NRF24_REG_OBSERVE_TX, ARCnt, 3, 0);
+	ret = read_byte(rd, NRF24_REG_OBSERVE_TX, arc, 3, 0);
 	if (ret != true) {
 		return ret;
 	}
 
-	if (*ARCnt > 15) {
+	if (*arc > 15) {
 		return false;
 	}
 
