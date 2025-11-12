@@ -130,14 +130,14 @@ bool nrf24_isEn_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool *isEn);
 bool nrf24_set_addrWidth(struct Nrf24 *rd, uint8_t addrWidth);
 bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addrWidth);
 
-bool nrf24_set_ARD(struct Nrf24 *rd, uint16_t ARD);
-bool nrf24_get_ARD(struct Nrf24 *rd, uint16_t *ARD);	
+bool nrf24_set_ard(struct Nrf24 *rd, uint16_t ard);
+bool nrf24_get_ard(struct Nrf24 *rd, uint16_t *ard);
 
-bool nrf24_set_ARC(struct Nrf24 *rd, uint8_t ARC);
-bool nrf24_get_ARC(struct Nrf24 *rd, uint8_t *ARC);
+bool nrf24_set_arc(struct Nrf24 *rd, uint8_t arc);
+bool nrf24_get_arc(struct Nrf24 *rd, uint8_t *arc);
 
-bool nrf24_set_channel(struct Nrf24 *rd, uint16_t Mhz);
-bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *Mhz);
+bool nrf24_set_channel(struct Nrf24 *rd, uint16_t mhz);
+bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *mhz);
 
 bool nrf24_set_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate dataRate);
 bool nrf24_get_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate *dataRate);
@@ -154,7 +154,7 @@ bool nrf24_is_rxBufEmpty(struct Nrf24 *rd, bool *isEmpty);
 bool nrf24_is_txBufEmpty(struct Nrf24 *rd, bool *isEmpty);
 
 bool nrf24_read_plosCnt(struct Nrf24 *rd, uint8_t *plosCnt);
-bool nrf24_read_ARCnt(struct Nrf24 *rd, uint8_t *ARC);
+bool nrf24_read_arc(struct Nrf24 *rd, uint8_t *arc);
 
 bool nrf24_set_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t width);
 bool nrf24_get_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t width);
