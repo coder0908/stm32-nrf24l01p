@@ -692,83 +692,83 @@ bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addrWidth)
 	return ret;
 }
 
-bool nrf24_set_ARD(struct Nrf24 *rd, uint16_t ARDelay)
+bool nrf24_set_ard(struct Nrf24 *rd, uint16_t ard)
 {
-	VMD_ASSERT_PARAM(ARDelay >= 250 && ARDelay <= 4000);
+	VMD_ASSERT_PARAM(ard >= 250 && ard <= 4000);
 
-	ARDelay /= 250;
-	ARDelay--;
+	ard /= 250;
+	ard--;
 
-	return write_byte(rd, NRF24_REG_SETUP_RETR, ARDelay, 7, 4 );
+	return write_byte(rd, NRF24_REG_SETUP_RETR, ard, 7, 4 );
 }
 
-bool nrf24_get_ARDelay(struct Nrf24 *rd, uint16_t *ARDelay)
+bool nrf24_get_ard(struct Nrf24 *rd, uint16_t *ard)
 {
 	bool ret = false;
 	uint8_t tmp;
 
-	VMD_ASSERT_PARAM(ARDelay);
+	VMD_ASSERT_PARAM(ard);
 
 	ret = read_byte(rd, NRF24_REG_SETUP_RETR, &tmp, 7, 4);
 	if (ret != true) {
 		return ret;
 	}
 
-	*ARDelay = tmp;
-	*ARDelay += 1;
-	*ARDelay *= 250;
+	*ard = tmp;
+	*ard += 1;
+	*ard *= 250;
 
-	if (*ARDelay < 250 || *ARDelay > 4000) {
+	if (*ard < 250 || *ard > 4000) {
 		return false;
 	}
 
 	return ret;
 }
 
-bool nrf24_set_ARC(struct Nrf24 *rd, uint8_t ARCnt)
+bool nrf24_set_arc(struct Nrf24 *rd, uint8_t arc)
 {
-	VMD_ASSERT_PARAM(ARCnt <= 15);
-	return write_byte(rd, NRF24_REG_SETUP_RETR, ARCnt, 3, 0);
+	VMD_ASSERT_PARAM(arc <= 15);
+	return write_byte(rd, NRF24_REG_SETUP_RETR, arc, 3, 0);
 }
 
-bool nrf24_get_ARCnt(struct Nrf24 *rd, uint8_t *ARCnt)
+bool nrf24_get_arc(struct Nrf24 *rd, uint8_t *arc)
 {
 	bool ret = false;
 
-	ret = read_byte(rd, NRF24_REG_SETUP_RETR, ARCnt, 3, 0);
+	ret = read_byte(rd, NRF24_REG_SETUP_RETR, arc, 3, 0);
 	if (ret != true) {
 		return ret;
 	}
 
-	if (*ARCnt > 15) {
+	if (*arc > 15) {
 		return false;
 	}
 
 	return ret;
 }
 
-bool nrf24_set_channel(struct Nrf24 *rd, uint16_t Mhz)
+bool nrf24_set_channel(struct Nrf24 *rd, uint16_t mhz)
 {
-	VMD_ASSERT_PARAM(Mhz >= 2400 && Mhz <= 2525);
-	return write_byte(rd, NRF24_REG_RF_CH, Mhz - 2400, 6, 0);
+	VMD_ASSERT_PARAM(mhz >= 2400 && mhz <= 2525);
+	return write_byte(rd, NRF24_REG_RF_CH, mhz - 2400, 6, 0);
 }
 
-bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *Mhz)
+bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *mhz)
 {
 	bool ret = false;
 	uint8_t tmp = 0;
 
-	VMD_ASSERT_PARAM(Mhz);
+	VMD_ASSERT_PARAM(mhz);
 
 	ret = read_byte(rd, NRF24_REG_RF_CH, &tmp, 6, 0);
 	if (ret != true) {
 		return ret;
 	}
 
-	*Mhz = tmp;
-	*Mhz += 2400;
+	*mhz = tmp;
+	*mhz += 2400;
 
-	if (*Mhz < 2400 || *Mhz > 2525)
+	if (*mhz < 2400 || *mhz > 2525)
 		return false;
 
 	return ret;
