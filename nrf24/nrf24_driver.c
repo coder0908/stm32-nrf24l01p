@@ -1057,11 +1057,11 @@ bool nrf24_init_arduinoStyle(struct Nrf24 *rd)
 {
 	bool ret = false;
 
-	ret = nrf24_set_ARC(rd, 15);
+	ret = nrf24_set_arc(rd, 15);
 	if (ret != true)
 		return ret;
 
-	ret = nrf24_set_ARD(rd, 250 * 5);
+	ret = nrf24_set_ard(rd, 250 * 5);
 	if (ret != true)
 		return ret;
 
