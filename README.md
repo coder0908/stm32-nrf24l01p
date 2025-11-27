@@ -10,7 +10,7 @@ LSByte first, MSBit first
 <img width="1917" height="1000" alt="스크린샷 2025-11-27 141626" src="https://github.com/user-attachments/assets/52b21db9-70f2-40af-9c19-bfa73cfc3e7d" />
 
 ## CE PIN
-### active high
+active high
 <img width="1917" height="1002" alt="스크린샷 2025-11-27 141651" src="https://github.com/user-attachments/assets/7ce8ec12-c90b-461d-a1e9-a056508cf6a7" />
 
 ## CS PIN
