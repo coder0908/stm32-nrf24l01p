@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "stm32f4xx_hal.h"
-#include "vmd.h"
 
 #define NRF24_MAX_PLD_WIDTH 32
 
