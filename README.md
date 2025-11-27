@@ -1,5 +1,6 @@
 nRF24l01plus driver.
-
+All feature implemented.
+See datasheet for more detail.
 
 ## SPI SETTING
 max 10Mbps
