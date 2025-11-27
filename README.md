@@ -17,3 +17,6 @@ active low
 ## IRQ PIN
 active low
 <img width="1910" height="1002" alt="스크린샷 2025-11-27 141723" src="https://github.com/user-attachments/assets/c8c65a7c-26d6-4c2c-8d6b-e53a668b252b" />
+
+enable nvic
+<img width="1895" height="1005" alt="스크린샷 2025-11-27 150159" src="https://github.com/user-attachments/assets/a2a5889b-4c53-459d-9edc-4bf1eea90df8" />
