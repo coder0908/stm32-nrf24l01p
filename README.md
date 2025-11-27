@@ -3,11 +3,7 @@ All feature implemented.
 See datasheet for more detail.
 
 ## SPI SETTING
-max 10Mbps,
-CPOL=LOW,
-CPHA=1Edge,
-LSByte first, 
-MSBit first
+max 10Mbps, CPOL=LOW, CPHA=1Edge, LSByte first, MSBit first
 <img width="1917" height="1000" alt="스크린샷 2025-11-27 141626" src="https://github.com/user-attachments/assets/52b21db9-70f2-40af-9c19-bfa73cfc3e7d" />
 
 ## CE PIN
