@@ -7,39 +7,40 @@
 
 
 #include "nrf24l01plus_driver.h"
+#include <assert.h>
 
 #define _BV(bit) (1 << bit)
 
 static void en_cs(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(rd);
+	assert(rd);
 	HAL_GPIO_WritePin(rd->csPort, rd->csPin, GPIO_PIN_RESET);
 }
 
 static void dis_cs(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(rd);
+	assert(rd);
 	HAL_GPIO_WritePin(rd->csPort, rd->csPin, GPIO_PIN_SET);
 }
 
 static void en_ce(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(rd);
+	assert(rd);
 	HAL_GPIO_WritePin(rd->cePort, rd->cePin, GPIO_PIN_SET);
 }
 
 static void dis_ce(struct Nrf24 *rd)
 {
-	VMD_ASSERT_PARAM(rd);
+	assert(rd);
 	HAL_GPIO_WritePin(rd->cePort, rd->cePin, GPIO_PIN_RESET);
 }
 
 //LSB first
 static bool nrf24_write_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *buf, uint16_t size, uint8_t *status)
 {
-	VMD_ASSERT_PARAM(rd);
-	VMD_ASSERT_PARAM(buf);
-	VMD_ASSERT_PARAM(size <= 32);
+	assert(rd);
+	assert(buf);
+	assert(size <= 32);
 
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
@@ -66,9 +67,9 @@ static bool nrf24_write_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *buf, uint16_
 //LSB first
 static bool nrf24_read_spi(struct Nrf24 *rd, uint8_t reg, uint8_t *buf, uint16_t size, uint8_t *status)
 {
-	VMD_ASSERT_PARAM((rd));
-	VMD_ASSERT_PARAM((buf));
-	VMD_ASSERT_PARAM(size <= 32);
+	assert((rd));
+	assert((buf));
+	assert(size <= 32);
 
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
@@ -99,9 +100,9 @@ static bool nrf24_write_regByte(struct Nrf24 *rd, uint8_t reg, uint8_t data, uin
 	uint8_t mask = 0;
 	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM(lessSigBitIdx < moreSigBitIdx);
-	VMD_ASSERT_PARAM(moreSigBitIdx <= 7);
-	VMD_ASSERT_PARAM(lessSigBitIdx <= 7);
+	assert(lessSigBitIdx < moreSigBitIdx);
+	assert(moreSigBitIdx <= 7);
+	assert(lessSigBitIdx <= 7);
 
 	for (int i = lessSigBitIdx; i <= moreSigBitIdx; i++) {
 		mask |= _BV(i);
@@ -127,10 +128,10 @@ static bool nrf24_read_regByte(struct Nrf24 *rd, uint8_t reg, uint8_t *data, uin
 	uint8_t mask = 0;
 	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM(lessSigBitIdx < moreSigBitIdx);
-	VMD_ASSERT_PARAM(moreSigBitIdx <= 7);
-	VMD_ASSERT_PARAM(lessSigBitIdx <= 7);
-	VMD_ASSERT_PARAM(data);
+	assert(lessSigBitIdx < moreSigBitIdx);
+	assert(moreSigBitIdx <= 7);
+	assert(lessSigBitIdx <= 7);
+	assert(data);
 
 	for (int i = lessSigBitIdx; i <= moreSigBitIdx; i++) {
 		mask |= _BV(i);
@@ -154,7 +155,7 @@ static bool nrf24_write_regBit(struct Nrf24 *rd, uint8_t reg, bool en, uint8_t b
 	bool ret = false;
 	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM(bitIdx <= 7);
+	assert(bitIdx <= 7);
 
 	ret = nrf24_read_spi(rd, reg, &tmpReg, 1, NULL);
 	if (!ret) {
@@ -172,8 +173,8 @@ static bool nrf24_read_regBit(struct Nrf24 *rd, uint8_t reg, bool *isEn, uint8_t
 	bool ret = false;
 	uint8_t tmpReg = 0;
 
-	VMD_ASSERT_PARAM(bitIdx <= 7);
-	VMD_ASSERT_PARAM((isEn));
+	assert(bitIdx <= 7);
+	assert((isEn));
 
 	ret = nrf24_read_spi(rd, reg, &tmpReg, 1, NULL);
 	if (!ret) {
@@ -187,10 +188,10 @@ static bool nrf24_read_regBit(struct Nrf24 *rd, uint8_t reg, bool *isEn, uint8_t
 
 bool nrf24_init(struct Nrf24 *rd, SPI_HandleTypeDef *hspi, GPIO_TypeDef *cePort, uint16_t cePin, GPIO_TypeDef *csPort, uint16_t csPin)
 {
-	VMD_ASSERT_PARAM(rd);
-	VMD_ASSERT_PARAM(cePort);
-	VMD_ASSERT_PARAM(csPort);
-	VMD_ASSERT_PARAM(hspi);
+	assert(rd);
+	assert(cePort);
+	assert(csPort);
+	assert(hspi);
 
 	rd->hspi = hspi;
 	rd->cePort = cePort;
@@ -259,10 +260,10 @@ bool nrf24_write_txPld(struct Nrf24 *rd, uint8_t *pld, uint16_t size)
 	const uint8_t reg = NRF24_CMD_W_TX_PAYLOAD;
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
-	VMD_ASSERT_PARAM(size >= 1);
-	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM((rd));
-	VMD_ASSERT_PARAM((pld));
+	assert(size >= 1);
+	assert(size <= 32);
+	assert((rd));
+	assert((pld));
 
 	en_cs(rd);
 
@@ -292,10 +293,10 @@ bool nrf24_read_rxPld(struct Nrf24 *rd, uint8_t *pld, uint16_t size)
 	const uint8_t reg = NRF24_CMD_R_RX_PAYLOAD;
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
-	VMD_ASSERT_PARAM(size >= 1);
-	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM((rd));
-	VMD_ASSERT_PARAM(pld);
+	assert(size >= 1);
+	assert(size <= 32);
+	assert((rd));
+	assert(pld);
 
 	en_cs(rd);
 
@@ -322,10 +323,10 @@ bool nrf24_write_txPldNoAck(struct Nrf24 *rd, uint8_t *pld, uint16_t size)
 	const uint8_t reg = NRF24_CMD_W_TX_PAYLOAD_NOACK;
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
-	VMD_ASSERT_PARAM(size >= 1);
-	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM((rd));
-	VMD_ASSERT_PARAM(pld);
+	assert(size >= 1);
+	assert(size <= 32);
+	assert((rd));
+	assert(pld);
 
 	en_cs(rd);
 
@@ -355,11 +356,11 @@ bool nrf24_write_ackPld(struct Nrf24 *rd, uint8_t pipe, const uint8_t *pld, uint
 	uint8_t reg = NRF24_CMD_W_ACK_PAYLOAD;
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 
-	VMD_ASSERT_PARAM(size >= 1);
-	VMD_ASSERT_PARAM(size <= 32);
-	VMD_ASSERT_PARAM((rd));
-	VMD_ASSERT_PARAM(pld);
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(size >= 1);
+	assert(size <= 32);
+	assert((rd));
+	assert(pld);
+	assert(pipe <= 5);
 
 	reg |= pipe;
 
@@ -387,7 +388,7 @@ bool nrf24_reuse_txPld(struct Nrf24 *rd)
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_REUSE_TX_PL;
 
-	VMD_ASSERT_PARAM(rd);
+	assert(rd);
 
 	en_cs(rd);
 	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, &rd->statusReg, 1, 300);
@@ -406,8 +407,8 @@ bool nrf24_read_pldWidth(struct Nrf24 *rd, uint8_t *pldWidth)
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_R_RX_PL_WID;
 
-	VMD_ASSERT_PARAM((rd));
-	VMD_ASSERT_PARAM(pldWidth);
+	assert((rd));
+	assert(pldWidth);
 
 	en_cs(rd);
 
@@ -437,8 +438,8 @@ bool nrf24_read_status(struct Nrf24 *rd, uint8_t *status)
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_NOP;
 
-	VMD_ASSERT_PARAM(rd);
-	VMD_ASSERT_PARAM(status);
+	assert(rd);
+	assert(status);
 
 	en_cs(rd);
 	spiStatus = HAL_SPI_TransmitReceive(rd->hspi, &reg, status, 1, 300);
@@ -457,7 +458,7 @@ bool nrf24_flush_txBuf(struct Nrf24 *rd)
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_FLUSH_TX;
 
-	VMD_ASSERT_PARAM((rd));
+	assert((rd));
 
 	en_cs(rd);
 
@@ -476,7 +477,7 @@ bool nrf24_flush_rxBuf(struct Nrf24 *rd)
 	HAL_StatusTypeDef spiStatus = HAL_ERROR;
 	const uint8_t reg = NRF24_CMD_FLUSH_RX;
 
-	VMD_ASSERT_PARAM((rd));
+	assert((rd));
 
 	en_cs(rd);
 
@@ -601,7 +602,7 @@ bool nrf24_get_crcLen(struct Nrf24 *rd, uint8_t *crcLen)
 	bool isEn_crc;
 	bool is_crcLen2byte;
 
-	VMD_ASSERT_PARAM(crcLen);
+	assert(crcLen);
 
 	ret = nrf24_read_regBit(rd, NRF24_REG_CONFIG, &isEn_crc, 3);
 	if (!ret) {
@@ -646,30 +647,30 @@ bool nrf24_get_pmode(struct Nrf24 *rd, bool *isRx)
 
 bool nrf24_en_autoAck(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 	return nrf24_write_regBit(rd, NRF24_REG_EN_AA, en, pipe);
 }
 
 bool nrf24_isEn_autoAck(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {	
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 	return nrf24_read_regBit(rd, NRF24_REG_EN_AA, isEn, pipe);
 }
 
 bool nrf24_en_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 	return nrf24_write_regBit(rd, NRF24_REG_EN_RXADDR, en, pipe);
 }
 bool nrf24_isEn_rxAddr(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 	return nrf24_read_regBit(rd, NRF24_REG_EN_RXADDR, isEn, pipe);
 }
 
 bool nrf24_set_addrWidth(struct Nrf24 *rd, uint8_t addrWidth)
 {
-	VMD_ASSERT_PARAM(addrWidth >= 3 && addrWidth <= 5);
+	assert(addrWidth >= 3 && addrWidth <= 5);
 
 	return nrf24_write_regByte(rd, NRF24_REG_SETUP_AW, addrWidth - 2, 1, 0);
 }
@@ -678,7 +679,7 @@ bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addrWidth)
 {
 	bool ret = false;
 
-	VMD_ASSERT_PARAM(addrWidth);
+	assert(addrWidth);
 
 	ret = nrf24_read_regByte(rd, NRF24_REG_SETUP_AW, addrWidth, 1, 0);
 	if (!ret ) {
@@ -695,7 +696,7 @@ bool nrf24_get_addrWidth(struct Nrf24 *rd, uint8_t *addrWidth)
 
 bool nrf24_set_ard(struct Nrf24 *rd, uint16_t ard)
 {
-	VMD_ASSERT_PARAM(ard >= 250 && ard <= 4000);
+	assert(ard >= 250 && ard <= 4000);
 
 	ard /= 250;
 	ard--;
@@ -708,7 +709,7 @@ bool nrf24_get_ard(struct Nrf24 *rd, uint16_t *ard)
 	bool ret = false;
 	uint8_t tmp = 0;
 
-	VMD_ASSERT_PARAM(ard);
+	assert(ard);
 
 	ret = nrf24_read_regByte(rd, NRF24_REG_SETUP_RETR, &tmp, 7, 4);
 	if (!ret) {
@@ -728,7 +729,7 @@ bool nrf24_get_ard(struct Nrf24 *rd, uint16_t *ard)
 
 bool nrf24_set_arc(struct Nrf24 *rd, uint8_t arc)
 {
-	VMD_ASSERT_PARAM(arc <= 15);
+	assert(arc <= 15);
 	return nrf24_write_regByte(rd, NRF24_REG_SETUP_RETR, arc, 3, 0);
 }
 
@@ -750,7 +751,7 @@ bool nrf24_get_arc(struct Nrf24 *rd, uint8_t *arc)
 
 bool nrf24_set_channel(struct Nrf24 *rd, uint16_t mhz)
 {
-	VMD_ASSERT_PARAM(mhz >= 2400 && mhz <= 2525);
+	assert(mhz >= 2400 && mhz <= 2525);
 	return nrf24_write_regByte(rd, NRF24_REG_RF_CH, mhz - 2400, 6, 0);
 }
 
@@ -759,7 +760,7 @@ bool nrf24_get_channel(struct Nrf24 *rd, uint16_t *mhz)
 	bool ret = false;
 	uint8_t tmp = 0;
 
-	VMD_ASSERT_PARAM(mhz);
+	assert(mhz);
 
 	ret = nrf24_read_regByte(rd, NRF24_REG_RF_CH, &tmp, 6, 0);
 	if (!ret) {
@@ -807,7 +808,7 @@ bool nrf24_get_dataRate(struct Nrf24 *rd, enum Nrf24_DataRate *dataRate)
 	bool lowBit = 0;
 	bool highBit = 0;
 
-	VMD_ASSERT_PARAM(dataRate);
+	assert(dataRate);
 
 	ret = nrf24_read_regBit(rd, NRF24_REG_RF_SETUP, &lowBit, 5);
 	if (!ret) {
@@ -886,7 +887,7 @@ bool nrf24_read_plosCnt(struct Nrf24 *rd, uint8_t *plosCnt)
 {
 	bool ret = false;
 
-	VMD_ASSERT_PARAM(plosCnt);
+	assert(plosCnt);
 
 	ret = nrf24_read_regByte(rd, NRF24_REG_OBSERVE_TX, plosCnt, 7, 4);
 	if (!ret) {
@@ -904,7 +905,7 @@ bool nrf24_read_arc(struct Nrf24 *rd, uint8_t *arc)
 {
 	bool ret = false;
 
-	VMD_ASSERT_PARAM(arc);
+	assert(arc);
 
 	ret = nrf24_read_regByte(rd, NRF24_REG_OBSERVE_TX, arc, 3, 0);
 	if (!ret) {
@@ -923,9 +924,9 @@ bool nrf24_set_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t w
 	bool ret = false;
 	uint8_t read_addr[5] = {0,};
 
-	VMD_ASSERT_PARAM(rxAddr);
-	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(rxAddr);
+	assert(width >= 3 && width <= 5);
+	assert(pipe <= 5);
 
 	if (pipe == 0 || pipe == 1) {
 		return nrf24_write_spi(rd, NRF24_REG_RX_ADDR_P0 + pipe, rxAddr, width, NULL);
@@ -949,8 +950,8 @@ bool nrf24_get_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t w
 {
 	bool ret = false;
 
-	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(width >= 3 && width <= 5);
+	assert(pipe <= 5);
 
 	if (pipe == 0) {
 		return nrf24_read_spi(rd, NRF24_REG_RX_ADDR_P0, rxAddr, width, NULL);
@@ -970,20 +971,20 @@ bool nrf24_get_rxAddr(struct Nrf24 *rd, uint8_t pipe, uint8_t *rxAddr, uint8_t w
 
 bool nrf24_set_txAddr(struct Nrf24 *rd, uint8_t *txAddr, uint8_t width)
 {
-	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
+	assert(width >= 3 && width <= 5);
 	return nrf24_write_spi(rd, NRF24_REG_TX_ADDR, txAddr, width, NULL);
 }
 
 bool nrf24_get_txAddr(struct Nrf24 *rd, uint8_t *txAddr, uint8_t width)
 {
-	VMD_ASSERT_PARAM(width >= 3 && width <= 5);
+	assert(width >= 3 && width <= 5);
 	return nrf24_read_spi(rd, NRF24_REG_TX_ADDR, txAddr, width, NULL);
 }
 
 bool nrf24_set_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t pldWidth)
 {
-	VMD_ASSERT_PARAM(pldWidth <= 32);
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pldWidth <= 32);
+	assert(pipe <= 5);
 
 	return nrf24_write_regByte(rd, NRF24_REG_RX_PW_P0 + pipe, pldWidth, 5, 0);
 }
@@ -992,7 +993,7 @@ bool nrf24_get_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t *pldWidth)
 {
 	bool ret = false;
 
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 
 	ret = nrf24_read_regByte(rd, NRF24_REG_RX_PW_P0 + pipe, pldWidth, 5, 0);
 	if (!ret) {
@@ -1010,13 +1011,13 @@ bool nrf24_get_rxPldWidth(struct Nrf24 *rd, uint8_t pipe, uint8_t *pldWidth)
 //requirement: nrf24_en_auto_ack
 bool nrf24_set_DPL(struct Nrf24 *rd, uint8_t pipe, bool en)
 {
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 	return nrf24_write_regBit(rd, NRF24_REG_DYNPD, en, pipe);
 }
 
 bool nrf24_get_DPL(struct Nrf24 *rd, uint8_t pipe, bool *isEn)
 {
-	VMD_ASSERT_PARAM(pipe <= 5);
+	assert(pipe <= 5);
 	return nrf24_read_regBit(rd, NRF24_REG_DYNPD, isEn, pipe);
 
 }
