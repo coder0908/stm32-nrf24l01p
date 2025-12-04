@@ -1,5 +1,5 @@
 /*
- * nrf24l01plus_driver.c
+ * nrf24l01plus.c
  *
  *  Created on: Apr 26, 2025
  *      Author: coder0908
